@@ -32,7 +32,7 @@ class BasicDataset(Dataset):
         w, h = pil_img.size
         newW, newH = int(scale * w), int(scale * h)
         assert newW > 0 and newH > 0, 'Scale is too small'
-        pil_img = pil_img.resize((200, 200))
+        pil_img = pil_img.resize((250, 250))
 
         img_nd = np.array(pil_img)
 
@@ -65,6 +65,7 @@ class BasicDataset(Dataset):
 
         ref = self.preprocess(ref, self.scale)
         img = self.preprocess(img, self.scale)
+        img_alone = img
         img = np.concatenate((img, ref))
         mask = self.preprocess(mask, self.scale)
         #mask_clean = np.zeros([3, 200, 200])
@@ -76,7 +77,9 @@ class BasicDataset(Dataset):
 
         return {
             'image': torch.from_numpy(img).type(torch.FloatTensor),
-            'mask': torch.from_numpy(mask).type(torch.FloatTensor)
+            'mask': torch.from_numpy(mask).type(torch.FloatTensor),
+            'image_alone': torch.from_numpy(img_alone).type(torch.FloatTensor),
+            'ref_alone': torch.from_numpy(ref).type(torch.FloatTensor)
         }
 
 
