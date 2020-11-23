@@ -12,10 +12,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 from PIL import Image
 
-def Load_Overfit_Set():
+def Load_Set(overfit_set = False):
     # Some variable defintions
-    dir_img = 'overfit_data/'
-    dir_mask = 'overfit_masks/'
+    if overfit_set:
+        dir_img = 'overfit_data/'
+        dir_mask = 'overfit_masks/'
+    else:
+        dir_img = 'data/imgs/'
+        dir_mask = 'data/masks/'
 
     images = torchvision.datasets.ImageFolder(root = dir_img, transform=transforms.ToTensor())
     masks = torchvision.datasets.ImageFolder(root = dir_mask, transform=transforms.ToTensor())

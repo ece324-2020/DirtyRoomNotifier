@@ -16,15 +16,20 @@ from PIL import Image
 import time
 
 from Autoencoder_Class import Autoencoder
-from Overfit_Dataset import Load_Overfit_Set
+from Baseline_Dataset import Load_Set
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Load small data set for over-fitting
-smallSetImg, smallSetMsk = Load_Overfit_Set()
+start = time.time()
+print('Begin Loading Data...')
+smallSetImg, smallSetMsk = Load_Set(overfit_set = False)
+end = time.time()
+time2 = end - start
+print('Done Loading Data')
+print("Time Taken to Load Data: " + str(time2))
 
-
-def train(model, num_epochs=5, batch_size=10, learning_rate=0.001):
+def train(model, num_epochs=5, batch_size=1, learning_rate=0.001):
     torch.manual_seed(42)
     criterion = nn.MSELoss() # mean square error loss
     optimizer = torch.optim.Adam(model.parameters(),
@@ -65,7 +70,7 @@ def train(model, num_epochs=5, batch_size=10, learning_rate=0.001):
 net = Autoencoder()
 net.to(device)
 
-max_epochs = 800
+max_epochs = 500
 outputs, loss, epochs = train(net, num_epochs=max_epochs)
 
 # Plot accuracy vs step
@@ -79,8 +84,8 @@ def Segment_Evolution():
     # See evolution of images
     for k in range(0, max_epochs, 100):
         plt.figure(figsize=(9, 2))
-        imgs = outputs[k][1].detach().numpy()
-        recon = outputs[k][2].detach().numpy()
+        imgs = outputs[k][1].cpu().detach().numpy()
+        recon = outputs[k][2].detach().cpu().numpy()
         for i, item in enumerate(imgs):
             if i >= 9: break
             plt.subplot(2, 9, i + 1)
@@ -90,10 +95,14 @@ def Segment_Evolution():
             if i >= 9: break
             plt.subplot(2, 9, 9 + i + 1)
             plt.imshow(item[0])
+    plt.show()
 
+#Segment_Evolution()
 
-imgs = outputs[max_epochs-1][1].detach().numpy()
+imgs = outputs[max_epochs-1][1].cpu().detach().numpy()
+recons = outputs[max_epochs-1][2].cpu().detach().numpy()
 plt.subplot(1, 2, 1)
 plt.imshow(imgs[0][0])
 plt.subplot(1, 2, 2)
-plt.imshow(imgs[8][0])
+plt.imshow(recons[0][0])
+plt.show()
