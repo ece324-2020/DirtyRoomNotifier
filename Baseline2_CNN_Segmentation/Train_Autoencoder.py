@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix
 from PIL import Image
 import time
+import copy
 
 from Autoencoder_Class import Autoencoder
 from Baseline_Dataset import Load_Set
@@ -23,18 +24,19 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # Load small data set for over-fitting
 start = time.time()
 print('Begin Loading Data...')
-smallSetImg, smallSetMsk = Load_Set(overfit_set = False)
+smallSetImg, smallSetMsk = Load_Set(overfit_set=False)
 end = time.time()
 time2 = end - start
 print('Done Loading Data')
 print("Time Taken to Load Data: " + str(time2))
 
-def train(model, num_epochs=5, batch_size=1, learning_rate=0.001):
+
+def train(model, num_epochs=5, batch_size=10, learning_rate=0.0001):
     torch.manual_seed(42)
-    criterion = nn.MSELoss() # mean square error loss
+    criterion = nn.MSELoss()  # mean square error loss
     optimizer = torch.optim.Adam(model.parameters(),
                                  lr=learning_rate,
-                                 weight_decay=1e-5) # <--
+                                 weight_decay=1e-5)
 
     img_loader = torch.utils.data.DataLoader(smallSetImg, batch_size=batch_size, shuffle=False)
     msk_loader = torch.utils.data.DataLoader(smallSetMsk, batch_size=batch_size, shuffle=False)
@@ -46,32 +48,42 @@ def train(model, num_epochs=5, batch_size=1, learning_rate=0.001):
     # Keep track of time it takes to run
     start = time.time()
 
+    best_loss = 999999
+
     for epoch in range(num_epochs):
         for img, mask in zip(img_loader, msk_loader):
             img, mask = img.to(device), mask.to(device)
-            recon = model(img,batch_size)
+            recon = model(img, batch_size)
             loss = criterion(recon, mask)
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
 
-        print('Epoch:{}, Loss:{:.4f}'.format(epoch+1, float(loss)))
+        print('Epoch:{}, Loss:{:.4f}'.format(epoch + 1, float(loss)))
         full_loss.append(float(loss))
         epoch_tracker.append(epoch)
-        outputs.append((epoch, img, recon),)   # store the outputs for viewing below
+        outputs.append((epoch, img, recon), )  # store the outputs for viewing below
+
+        if float(loss) < best_loss:
+            best_loss = float(loss)
+            best_model_wts = copy.deepcopy(model.state_dict())
 
     end = time.time()
     time1 = end - start
     print("Run Time: " + str(time1))
+    model.load_state_dict(best_model_wts)
 
-    return outputs, full_loss, epoch_tracker
+    return outputs, full_loss, epoch_tracker, model
+
 
 # Run Training Loop
 net = Autoencoder()
 net.to(device)
+max_epochs = 2500
+outputs, loss, epochs, model = train(net, num_epochs=max_epochs)
 
-max_epochs = 500
-outputs, loss, epochs = train(net, num_epochs=max_epochs)
+# Save Model
+torch.save(model.state_dict(), 'ModelBatch10_0.0001.pt')
 
 # Plot accuracy vs step
 plt.plot(epochs, loss)
@@ -79,6 +91,7 @@ plt.title('Loss vs. Epoch')
 plt.xlabel('Epoch')
 plt.ylabel('Loss')
 plt.show()
+
 
 def Segment_Evolution():
     # See evolution of images
@@ -97,10 +110,11 @@ def Segment_Evolution():
             plt.imshow(item[0])
     plt.show()
 
-#Segment_Evolution()
 
-imgs = outputs[max_epochs-1][1].cpu().detach().numpy()
-recons = outputs[max_epochs-1][2].cpu().detach().numpy()
+# Segment_Evolution()
+
+imgs = outputs[max_epochs - 1][1].cpu().detach().numpy()
+recons = outputs[max_epochs - 1][2].cpu().detach().numpy()
 plt.subplot(1, 2, 1)
 plt.imshow(imgs[0][0])
 plt.subplot(1, 2, 2)

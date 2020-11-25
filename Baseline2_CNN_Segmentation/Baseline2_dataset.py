@@ -12,7 +12,7 @@ class BasicDataset(Dataset):
     def __init__(self, imgs_dir, masks_dir, scale=1, mask_suffix=''):
         self.imgs_dir = imgs_dir
         self.masks_dir = masks_dir
-        self.refs_dir = 'overfit_refs/'
+        self.refs_dir = '../refs/'
         self.scale = scale
         self.mask_suffix = mask_suffix
         assert 0 < scale <= 1, 'Scale must be between 0 and 1'
@@ -32,7 +32,7 @@ class BasicDataset(Dataset):
         w, h = pil_img.size
         newW, newH = int(scale * w), int(scale * h)
         assert newW > 0 and newH > 0, 'Scale is too small'
-        pil_img = pil_img.resize((250, 250))
+        pil_img = pil_img.resize((100, 100))
 
         img_nd = np.array(pil_img)
 
@@ -68,11 +68,11 @@ class BasicDataset(Dataset):
         img_alone = img
         img = np.concatenate((img, ref))
         mask = self.preprocess(mask, self.scale)
-        #mask_clean = np.zeros([3, 200, 200])
-        #mask_clean.fill(255)
-        #mask = np.concatenate((mask, mask_clean))
+        # mask_clean = np.zeros([3, 200, 200])
+        # mask_clean.fill(255)
+        # mask = np.concatenate((mask, mask_clean))
 
-        #assert img.size == mask.size, \
+        # assert img.size == mask.size, \
         #    f'Image and mask {idx} should be the same size, but are {img.size} and {mask.size}'
 
         return {
@@ -86,3 +86,10 @@ class BasicDataset(Dataset):
 class CarvanaDataset(BasicDataset):
     def __init__(self, imgs_dir, masks_dir, scale=1):
         super().__init__(imgs_dir, masks_dir, scale, mask_suffix='_mask')
+
+
+dir_img = '../data/imgs/'
+dir_mask = '../data/masks/'
+x = BasicDataset(dir_img, dir_mask)
+
+print(x)
