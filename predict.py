@@ -13,14 +13,13 @@ from utils.data_vis import plot_img_and_mask
 from utils.dataset import BasicDataset
 
 
-def predict_img(net,
-                full_img,
-                device,
-                scale_factor=1,
-                out_threshold=0.5):
+def predict_img(net, full_img, device, scale_factor=1, out_threshold=0.5):
     net.eval()
+    img_trans = full_img.transpose((2, 0, 1))
+    if img_trans.max() > 1:
+        img_trans = img_trans / 255
 
-    img = torch.from_numpy(BasicDataset.preprocess(full_img, scale_factor))
+    img = torch.from_numpy(img_trans)
 
     img = img.unsqueeze(0)
     img = img.to(device=device, dtype=torch.float32)
@@ -33,15 +32,12 @@ def predict_img(net,
         else:
             probs = torch.sigmoid(output)
 
+        print('GOT RESULT', probs.shape, type(probs))
         probs = probs.squeeze(0)
 
         tf = transforms.Compose(
-            [
-                transforms.ToPILImage(),
-                transforms.Resize(full_img.size[1]),
-                transforms.ToTensor()
-            ]
-        )
+            [transforms.ToPILImage(),
+             transforms.ToTensor()])
 
         probs = tf(probs.cpu())
         full_mask = probs.squeeze().cpu().numpy()
@@ -50,26 +46,45 @@ def predict_img(net,
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Predict masks from input images',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--model', '-m', default='MODEL.pth',
+    parser = argparse.ArgumentParser(
+        description='Predict masks from input images',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--model',
+                        '-m',
+                        default='MODEL.pth',
                         metavar='FILE',
                         help="Specify the file in which the model is stored")
-    parser.add_argument('--input', '-i', metavar='INPUT', nargs='+',
-                        help='filenames of input images', required=True)
+    parser.add_argument('--input',
+                        '-i',
+                        metavar='INPUT',
+                        nargs='+',
+                        help='filenames of input images',
+                        required=True)
 
-    parser.add_argument('--output', '-o', metavar='INPUT', nargs='+',
+    parser.add_argument('--output',
+                        '-o',
+                        metavar='INPUT',
+                        nargs='+',
                         help='Filenames of ouput images')
-    parser.add_argument('--viz', '-v', action='store_true',
+    parser.add_argument('--viz',
+                        '-v',
+                        action='store_true',
                         help="Visualize the images as they are processed",
                         default=False)
-    parser.add_argument('--no-save', '-n', action='store_true',
+    parser.add_argument('--no-save',
+                        '-n',
+                        action='store_true',
                         help="Do not save the output masks",
                         default=False)
-    parser.add_argument('--mask-threshold', '-t', type=float,
-                        help="Minimum probability value to consider a mask pixel white",
-                        default=0.5)
-    parser.add_argument('--scale', '-s', type=float,
+    parser.add_argument(
+        '--mask-threshold',
+        '-t',
+        type=float,
+        help="Minimum probability value to consider a mask pixel white",
+        default=0.5)
+    parser.add_argument('--scale',
+                        '-s',
+                        type=float,
                         help="Scale factor for the input images",
                         default=0.5)
 
@@ -85,7 +100,8 @@ def get_output_filenames(args):
             pathsplit = os.path.splitext(f)
             out_files.append("{}_OUT{}".format(pathsplit[0], pathsplit[1]))
     elif len(in_files) != len(args.output):
-        logging.error("Input files and output files are not of the same length")
+        logging.error(
+            "Input files and output files are not of the same length")
         raise SystemExit()
     else:
         out_files = args.output
@@ -102,7 +118,7 @@ if __name__ == "__main__":
     in_files = args.input
     out_files = get_output_filenames(args)
 
-    net = UNet(n_channels=3, n_classes=1)
+    net = UNet(n_channels=6, n_classes=1)
 
     logging.info("Loading model {}".format(args.model))
 
@@ -116,7 +132,9 @@ if __name__ == "__main__":
     for i, fn in enumerate(in_files):
         logging.info("\nPredicting image {} ...".format(fn))
 
-        img = Image.open(fn)
+        img = np.array(Image.open(fn).resize((200, 200)))
+        ref = np.array(Image.open('ref.jpg').resize((200, 200)))
+        img = np.concatenate((img, ref), axis=2)
 
         mask = predict_img(net=net,
                            full_img=img,
@@ -132,5 +150,7 @@ if __name__ == "__main__":
             logging.info("Mask saved to {}".format(out_files[i]))
 
         if args.viz:
-            logging.info("Visualizing results for image {}, close to continue ...".format(fn))
+            logging.info(
+                "Visualizing results for image {}, close to continue ...".
+                format(fn))
             plot_img_and_mask(img, mask)
