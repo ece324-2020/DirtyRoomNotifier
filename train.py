@@ -2,12 +2,14 @@ import argparse
 import logging
 import os
 import sys
+from PIL import Image
 
 import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
 from tqdm import tqdm
+import torchvision.transforms.functional as transforms
 
 from eval import eval_net
 from unet import UNet
@@ -17,19 +19,18 @@ from utils.dataset import BasicDataset
 from torch.utils.data import DataLoader, random_split
 
 dir_img = 'data/imgs/'
-dir_mask = 'data/masks/'
+dir_mask = 'data/parsed_masks/'
 dir_checkpoint = 'checkpoints/'
 
 
 def train_net(net,
               device,
               epochs=5,
-              batch_size=1,
+              batch_size=5,
               lr=0.001,
               val_percent=0.1,
               save_cp=True,
               img_scale=0.5):
-
     dataset = BasicDataset(dir_img, dir_mask, img_scale)
     n_val = int(len(dataset) * val_percent)
     n_train = len(dataset) - n_val
@@ -40,7 +41,7 @@ def train_net(net,
                               num_workers=8,
                               pin_memory=True)
     val_loader = DataLoader(val,
-                            batch_size=batch_size,
+                            batch_size=1,
                             shuffle=False,
                             num_workers=8,
                             pin_memory=True,
@@ -114,20 +115,15 @@ def train_net(net,
                         writer.add_histogram('grads/' + tag,
                                              value.grad.data.cpu().numpy(),
                                              global_step)
-                    val_score = eval_net(net, val_loader, device)
+                    val_score = eval_net(net, val_loader, device, writer,
+                                         global_step)
                     scheduler.step(val_score)
                     writer.add_scalar('learning_rate',
                                       optimizer.param_groups[0]['lr'],
                                       global_step)
 
-                    if net.n_classes > 1:
-                        logging.info(
-                            'Validation cross entropy: {}'.format(val_score))
-                        writer.add_scalar('Loss/test', val_score, global_step)
-                    else:
-                        logging.info(
-                            'Validation Dice Coeff: {}'.format(val_score))
-                        writer.add_scalar('Dice/test', val_score, global_step)
+                    logging.info('Validation Dice Coeff: {}'.format(val_score))
+                    writer.add_scalar('Dice/test', val_score, global_step)
 
                     writer.add_images('images', imgs[:, :3, :, :], global_step)
                     if net.n_classes == 1:
@@ -136,18 +132,31 @@ def train_net(net,
                         writer.add_images('masks/pred',
                                           torch.sigmoid(masks_pred) > 0.5,
                                           global_step)
+    net.eval()
+    incr = 0
+    mask_type = torch.float32
+    for batch in val_loader:
+        incr += 1
+        imgs, true_masks = batch['image'], batch['mask']
+        imgs = imgs.to(device=device, dtype=torch.float32)
+        true_masks = true_masks.to(device=device, dtype=mask_type)
+        with torch.no_grad():
+            mask_pred = net(imgs)
 
-        if save_cp:
-            try:
-                os.mkdir(dir_checkpoint)
-                logging.info('Created checkpoint directory')
-            except OSError:
-                pass
-            torch.save(net.state_dict(),
-                       dir_checkpoint + f'CP_epoch{epoch + 1}.pth')
-            logging.info(f'Checkpoint {epoch + 1} saved !')
+        pred = torch.sigmoid(mask_pred)
+        pred = (pred > 0.5).float()
+        write_image(imgs[0, :3, :, :], f'eval_images/{incr}_IMG')
+        write_image(
+            torch.sigmoid(mask_pred[0]) > 0.5, f'eval_images/{incr}_PRED')
+        write_image(true_masks[0], f'eval_images/{incr}_TRUE')
 
     writer.close()
+
+
+def write_image(img_arr, img_name):
+    print('WRITING IMAGE', img_arr.shape)
+    im = transforms.to_pil_image(img_arr.cpu())
+    im.save(img_name + '.jpg')
 
 
 def get_args():
@@ -230,13 +239,13 @@ if __name__ == '__main__':
 
     try:
         train_net(net=net,
-                  epochs=args.epochs,
-                  batch_size=args.batchsize,
-                  lr=args.lr,
+                  epochs=6,
+                  batch_size=5,
+                  lr=0.0001,
                   device=device,
                   img_scale=args.scale,
-                  val_percent=args.val / 100)
-        torch.save(net.state_dict(), 'TRAINED_WEIGHTS.pth')
+                  val_percent=0.1)
+        torch.save(net.state_dict(), 'MODEL.pth')
     except KeyboardInterrupt:
         torch.save(net.state_dict(), 'INTERRUPTED.pth')
         logging.info('Saved interrupt')
@@ -244,22 +253,3 @@ if __name__ == '__main__':
             sys.exit(0)
         except SystemExit:
             os._exit(0)
-    '''
-    img = Image.open('train.jpg')
-    ref = Image.open('ref.jpg')
-    img = np.concatenate(img, ref)
-    mask = predict_img(net=net,
-                       full_img=img,
-                       scale_factor=args.scale,
-                       out_threshold=args.mask_threshold,
-                       device=device)
-
-    result = mask_to_image(mask)
-    result.save('demo_img.jpg')
-
-    logging.info("Mask saved to {}".format(out_files[i]))
-
-    logging.info(
-        "Visualizing results for image {}, close to continue ...".format(fn))
-    plot_img_and_mask(img, mask)
-    '''
