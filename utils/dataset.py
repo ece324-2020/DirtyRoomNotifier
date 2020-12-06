@@ -57,7 +57,7 @@ class BasicDataset(Dataset):
             idx = self.ref_ids[i - len(self.ids) - 1]
             idref = idx.split('_')[1]  # i.e. A1
             img_file = glob(self.refs_dir + '01_' + idref + '.*')
-            ref_file = glob(self.refs_dir + '01_' + idref + '.*')
+            ref_file = glob(self.refs_dir + idx + '.*')
             ref = Image.open(ref_file[0])
             img = Image.open(img_file[0])
             mask = empty_mask
@@ -88,8 +88,3 @@ class BasicDataset(Dataset):
             'image': torch.from_numpy(img).type(torch.FloatTensor),
             'mask': torch.from_numpy(mask).type(torch.FloatTensor)
         }
-
-
-class CarvanaDataset(BasicDataset):
-    def __init__(self, imgs_dir, masks_dir, scale=1):
-        super().__init__(imgs_dir, masks_dir, scale, mask_suffix='_mask')

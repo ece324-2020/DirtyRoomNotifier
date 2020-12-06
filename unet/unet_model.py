@@ -11,11 +11,12 @@ class UNet(nn.Module):
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.bilinear = bilinear
+        dimscale = 64
 
-        self.inc = DoubleConv(n_channels, 64)
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
+        self.inc = DoubleConv(n_channels, dimscale)
+        self.down1 = Down(64, dimscale * 2)
+        self.down2 = Down(128, dimscale * 4)
+        self.down3 = Down(256, dimscale * 8)
         factor = 2 if bilinear else 1
         self.down4 = Down(512, 1024 // factor)
         self.up1 = Up(1024, 512 // factor, bilinear)
