@@ -4,6 +4,7 @@ import logging
 import argparse
 import os
 from glob import glob
+from collections import Counter
 
 import numpy as np
 import torch
@@ -55,8 +56,9 @@ def mask_to_image(mask):
 if __name__ == "__main__":
     scale = 0.5
     mask_threshold = 0.5
+    dirty_cutoff = 100  # number of dirty pixels in an image to classify as dirty
     in_files = [
-        splitext(file)[0] for file in listdir('data/imgs')
+        splitext(file)[0] for file in listdir('data/tests')
         if not file.startswith('.')
     ]
 
@@ -69,7 +71,7 @@ if __name__ == "__main__":
     for i, fn in enumerate(in_files):
         logging.info("\nPredicting image {} ...".format(fn))
 
-        img_file = glob(f'data/imgs/{fn}.*')
+        img_file = glob(f'data/tests/{fn}.*')
         ref_num = fn.split('_')[1]
         ref_file = glob(f'data/refs/01_{ref_num}.*')
         img = np.array(Image.open(img_file[0]).resize((200, 200)))
@@ -81,7 +83,13 @@ if __name__ == "__main__":
                            scale_factor=scale,
                            out_threshold=mask_threshold,
                            device=device)
-
+        # count black pixels in mask
+        cnt = np.bincount(np.array(mask).ravel())
+        print(f'DIRTY PIXELS: {cnt[0]} / {cnt[1]}')
+        img_name = f'predicted_masks/{fn}_MASK'
+        if cnt[0] > dirty_cutoff:
+            print("PREDICTED DIRTY")
+            img_name += '_DIRTY'
         result = mask_to_image(mask)
-        result.save(f'predicted_masks/{fn}_MASK.jpg')
+        result.save(img_name + '.jpg')
         print('SAVED IMAGE: ', fn + '_MASK.jpg')
